@@ -62,9 +62,6 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Data and Results
-/data/
-/results/
 
 # OS-generated files
 .DS_Store
