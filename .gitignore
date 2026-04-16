@@ -62,10 +62,11 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Data and Results
-/data/
-/results/
-
+.results/
+results/*.npy
+results/*.keras
+results/*.h5
+data/
 # OS-generated files
 .DS_Store
 .DS_Store?
