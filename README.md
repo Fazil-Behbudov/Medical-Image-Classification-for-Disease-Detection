@@ -200,18 +200,6 @@ jupyter notebook notebooks/
 - [x] Comprehensive evaluation
 - [x] Performance optimization
 - [x] Documentation
-
-## 👤 Author
-
-Created as a deep learning portfolio project demonstrating:
-- CNN architecture design
-- Handling class imbalance
-- Regularization techniques
-- Model evaluation & optimization
-- Git workflow & deployment
-
 ---
-
-**Last Updated:** April 16, 2026
 **Model Accuracy:** 80% (75-82% range)
 **Status:** Production-ready baseline
