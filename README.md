@@ -15,6 +15,7 @@ This project implements a Convolutional Neural Network (CNN) to classify brain t
 | Metric | Value |
 |--------|-------|
 | **Test Accuracy** | 75-82% (avg ~80%) |
+| **Observed Final Run (this case)** | 77% |
 | **Architecture** | CNN with Conv2D, MaxPooling, Dense layers |
 | **Overfitting** | None (train/val curves aligned) |
 | **Generalization** | Excellent |
@@ -140,7 +141,7 @@ jupyter notebook notebooks/
 5. ❌ **Batch Normalization** → Conflicted with large output values (removed)
 6. ❌ **Transfer Learning (EfficientNetB0)** → 26% accuracy (poor for medical imaging)
 
-**Final Model:** Combined data augmentation + class weights + dropout + LR scheduling = **80% test accuracy with no overfitting**
+**Final Model:** Combined data augmentation + class weights + dropout + LR scheduling = **80% average test accuracy** (range: **75%-82%**, this case: **77%**) with no overfitting
 
 ## 💡 Key Insights
 
