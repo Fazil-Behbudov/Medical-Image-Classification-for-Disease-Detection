@@ -14,7 +14,7 @@ This project implements a Convolutional Neural Network (CNN) to classify brain t
 
 | Metric | Value |
 |--------|-------|
-| **Test Accuracy** | 75-82% (avg ~77%) |
+| **Test Accuracy** | 75-82% (avg ~78%) |
 | **Architecture** | CNN with Conv2D, MaxPooling, Dense layers |
 | **Overfitting** | None (train/val curves aligned) |
 | **Generalization** | Excellent |
