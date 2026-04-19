@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
+import cv2
 import os
 import json
 import re
@@ -197,17 +198,16 @@ def load_final_confusion_matrix(cm_mtime=None):
 
 def preprocess_image(image_path, target_size=(150, 150)):
     """Preprocess image for model prediction"""
-    try:
-        img = Image.open(image_path).convert("L")
-    except (OSError, ValueError):
+    # Read image
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
         return None
-
-    # Resize using PIL then convert to numpy
-    img = img.resize(target_size)
-    img_array = np.array(img)
+    
+    # Resize
+    img = cv2.resize(img, target_size)
     
     # Convert grayscale to RGB (repeat channel 3 times)
-    img_rgb = np.repeat(img_array[:, :, np.newaxis], 3, axis=-1)
+    img_rgb = np.repeat(img[:, :, np.newaxis], 3, axis=-1)
     
     # Normalize
     img_rgb = img_rgb.astype('float32') / 255.0
@@ -466,7 +466,7 @@ elif page == "Predict":
                     # Display original image
                     with col1:
                         st.subheader("Original Image")
-                        original_img = np.array(Image.open(tmp_path).convert("L"))
+                        original_img = cv2.imread(tmp_path, cv2.IMREAD_GRAYSCALE)
                         st.image(original_img, use_container_width=True, clamp=True)
                     
                     # Make prediction

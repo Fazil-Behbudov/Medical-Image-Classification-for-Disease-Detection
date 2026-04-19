@@ -1,7 +1,8 @@
 ﻿streamlit==1.28.1
 numpy==1.26.4
 pillow==10.4.0
+opencv-python-headless==4.11.0.86
 matplotlib==3.8.4
 seaborn==0.13.2
 scikit-learn==1.5.2
-tensorflow-cpu==2.15.0
+tensorflow==2.15.0
