@@ -1,13 +1,11 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from PIL import Image
 import os
 import json
 import re
 from tensorflow.keras.models import load_model
-from sklearn.metrics import classification_report, confusion_matrix
 
 # Set page config
 st.set_page_config(
@@ -16,9 +14,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Set color theme
-sns.set_style("darkgrid")
 
 # App title and description
 st.sidebar.title("🧠 Brain Tumor Detection")
@@ -241,11 +236,23 @@ def plot_training_history(history):
 
 def plot_confusion_matrix(y_true, y_pred, target_names):
     """Plot confusion matrix"""
-    cm = confusion_matrix(y_true, y_pred)
-    
+    cm = np.zeros((len(target_names), len(target_names)), dtype=int)
+    for actual, predicted in zip(y_true, y_pred):
+        cm[int(actual), int(predicted)] += 1
+
     fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=target_names, yticklabels=target_names, ax=ax)
+    im = ax.imshow(cm, cmap="Blues")
+    fig.colorbar(im, ax=ax)
+
+    ax.set_xticks(np.arange(len(target_names)))
+    ax.set_yticks(np.arange(len(target_names)))
+    ax.set_xticklabels(target_names)
+    ax.set_yticklabels(target_names)
+
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center", color="black")
+
     ax.set_xlabel('Predicted')
     ax.set_ylabel('Actual')
     ax.set_title('Confusion Matrix', fontsize=14, fontweight='bold')
@@ -257,8 +264,18 @@ def plot_confusion_matrix(y_true, y_pred, target_names):
 def plot_confusion_matrix_from_matrix(cm, target_names):
     """Plot confusion matrix from a precomputed matrix artifact."""
     fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=target_names, yticklabels=target_names, ax=ax)
+    im = ax.imshow(cm, cmap="Blues")
+    fig.colorbar(im, ax=ax)
+
+    ax.set_xticks(np.arange(len(target_names)))
+    ax.set_yticks(np.arange(len(target_names)))
+    ax.set_xticklabels(target_names)
+    ax.set_yticklabels(target_names)
+
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center", color="black")
+
     ax.set_xlabel('Predicted')
     ax.set_ylabel('Actual')
     ax.set_title('Confusion Matrix', fontsize=14, fontweight='bold')
@@ -586,8 +603,17 @@ elif page == "Performance":
             st.caption("Showing final classification report from saved final artifact/Notebook 05 output.")
             st.code(fixed_report)
         else:
-            report = classification_report(y_test, y_pred, target_names=class_names)
-            st.caption("Final fixed report not found; showing live classification report.")
+            st.caption("Final fixed report not found; showing simple per-class recall from live predictions.")
+            cm_live = np.zeros((len(class_names), len(class_names)), dtype=int)
+            for actual, predicted in zip(y_test, y_pred):
+                cm_live[int(actual), int(predicted)] += 1
+
+            report_lines = ["Class            Recall    Support"]
+            for idx, name in enumerate(class_names):
+                support = int(cm_live[idx].sum())
+                recall = (cm_live[idx, idx] / support) if support else 0.0
+                report_lines.append(f"{name:<15} {recall:>6.2%}   {support}")
+            report = "\n".join(report_lines)
             st.code(report)
         
         st.markdown("---")
