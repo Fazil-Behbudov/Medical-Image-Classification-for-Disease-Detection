@@ -5,7 +5,6 @@ from PIL import Image
 import os
 import json
 import re
-from tensorflow.keras.models import load_model
 
 # Set page config
 st.set_page_config(
@@ -44,10 +43,18 @@ FINAL_CONFUSION_MATRIX_PATH = f"{RESULTS_PATH}/final_confusion_matrix.npy"
 @st.cache_resource
 def load_trained_model():
     """Load the trained model"""
-    if os.path.exists(MODEL_PATH):
-        return load_model(MODEL_PATH)
-    else:
+    if not os.path.exists(MODEL_PATH):
         st.error(f"Model not found at {MODEL_PATH}")
+        return None
+
+    try:
+        from tensorflow.keras.models import load_model
+    except ImportError:
+        return None
+
+    try:
+        return load_model(MODEL_PATH)
+    except Exception:
         return None
 
 @st.cache_data
@@ -456,7 +463,8 @@ elif page == "Predict":
     
     model = load_trained_model()
     if model is None:
-        st.error("Unable to load model. Please ensure the model file exists.")
+        st.error("Unable to load model on this deployment. TensorFlow/model backend is unavailable.")
+        st.info("Prediction is available locally, but on Streamlit Cloud this dependency may fail to install for the current Python image.")
     else:
         st.write("Upload an MRI image to get a brain tumor prediction.")
         
@@ -539,93 +547,99 @@ elif page == "Performance":
     fixed_report = load_final_classification_report(report_mtime)
     fixed_cm = load_final_confusion_matrix(cm_mtime)
     model = load_trained_model()
+    can_run_live_eval = X_test is not None and y_test is not None and model is not None
 
-    if X_test is None or model is None:
-        st.error("Unable to load performance data. Please ensure all data files exist.")
+    # Training History
+    st.header("Training Curves")
+    st.write("Final training curves from Notebook 05 (data augmentation + class weights).")
+
+    if nb05_history is not None:
+        fig = plot_training_history(nb05_history)
+        st.pyplot(fig)
     else:
-        # Training History
-        st.header("Training Curves")
-        st.write("Final training curves from Notebook 05 (data augmentation + class weights).")
+        st.warning(
+            "Final Notebook 05 training logs were not found in saved notebook outputs, "
+            "so final curves cannot be shown yet."
+        )
 
-        if nb05_history is not None:
-            fig = plot_training_history(nb05_history)
-            st.pyplot(fig)
-        else:
-            st.warning(
-                "Final Notebook 05 training logs were not found in saved notebook outputs, "
-                "so final curves cannot be shown yet."
-            )
-        
-        st.markdown("---")
-        
-        # Evaluate on test set
-        st.header("Test Set Evaluation")
-        
-        # Get predictions
+    st.markdown("---")
+
+    # Evaluate on test set
+    st.header("Test Set Evaluation")
+
+    # Metrics: prefer final values parsed from Notebook 05 outputs.
+    if nb05_test_loss is not None and nb05_test_acc is not None:
+        test_loss, test_acc = nb05_test_loss, nb05_test_acc
+        sample_count = len(y_test) if y_test is not None else (int(np.sum(fixed_cm)) if fixed_cm is not None else "N/A")
+        st.caption("Showing final test metrics captured from Notebook 05 outputs.")
+    elif can_run_live_eval:
         X_test_rgb = np.repeat(X_test, 3, axis=-1)
         predictions = model.predict(X_test_rgb, verbose=0)
         y_pred = np.argmax(predictions, axis=1)
-        
-        # Metrics: prefer final values parsed from Notebook 05 outputs.
-        if nb05_test_loss is not None and nb05_test_acc is not None:
-            test_loss, test_acc = nb05_test_loss, nb05_test_acc
-            st.caption("Showing final test metrics captured from Notebook 05 outputs.")
-        else:
-            test_loss, test_acc = model.evaluate(X_test_rgb, y_test, verbose=0)
-            st.caption("Notebook 05 final test metrics not found in outputs; showing live evaluation of best_model.keras.")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Test Accuracy", f"{test_acc:.2%}")
-        with col2:
-            st.metric("Test Loss", f"{test_loss:.4f}")
-        with col3:
-            st.metric("Test Samples", len(y_test))
-        
-        st.markdown("---")
-        
-        # Confusion Matrix
-        st.header("Confusion Matrix")
-        class_names = ['Glioma', 'Meningioma', 'No Tumor', 'Pituitary']
-        if fixed_cm is not None:
-            st.caption("Showing final confusion matrix from saved last Notebook 05 output.")
-            fig = plot_confusion_matrix_from_matrix(fixed_cm, class_names)
-        else:
-            st.caption("Final fixed confusion matrix not found; showing live confusion matrix.")
-            fig = plot_confusion_matrix(y_test, y_pred, class_names)
-        st.pyplot(fig)
-        
-        st.markdown("---")
-        
-        # Classification Report
-        st.header("Classification Report")
-        if fixed_report:
-            st.caption("Showing final classification report from saved final artifact/Notebook 05 output.")
-            st.code(fixed_report)
-        else:
-            st.caption("Final fixed report not found; showing simple per-class recall from live predictions.")
-            cm_live = np.zeros((len(class_names), len(class_names)), dtype=int)
-            for actual, predicted in zip(y_test, y_pred):
-                cm_live[int(actual), int(predicted)] += 1
+        test_loss, test_acc = model.evaluate(X_test_rgb, y_test, verbose=0)
+        sample_count = len(y_test)
+        st.caption("Notebook 05 final test metrics not found in outputs; showing live evaluation of best_model.keras.")
+    else:
+        test_loss, test_acc, sample_count = None, None, "N/A"
+        st.caption("Live evaluation is unavailable in this deployment because the model backend is not loaded.")
 
-            report_lines = ["Class            Recall    Support"]
-            for idx, name in enumerate(class_names):
-                support = int(cm_live[idx].sum())
-                recall = (cm_live[idx, idx] / support) if support else 0.0
-                report_lines.append(f"{name:<15} {recall:>6.2%}   {support}")
-            report = "\n".join(report_lines)
-            st.code(report)
-        
-        st.markdown("---")
-        
-        # Key Insights
-        st.header("⚠️ Important Notes")
-        st.warning("""
-        **This model is for educational purposes only:**
-        - Test accuracy is ~80%, with better performance on "No Tumor" and "Pituitary" classes
-        - Glioma detection (63-70%) is challenging due to similarity with other tumor types
-        - Clinical deployment would require significantly higher accuracy (85%+)
-        - Always consult with medical professionals for diagnosis
-        """)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Test Accuracy", f"{test_acc:.2%}" if test_acc is not None else "N/A")
+    with col2:
+        st.metric("Test Loss", f"{test_loss:.4f}" if test_loss is not None else "N/A")
+    with col3:
+        st.metric("Test Samples", sample_count)
+
+    st.markdown("---")
+
+    # Confusion Matrix
+    st.header("Confusion Matrix")
+    class_names = ['Glioma', 'Meningioma', 'No Tumor', 'Pituitary']
+    if fixed_cm is not None:
+        st.caption("Showing final confusion matrix from saved last Notebook 05 output.")
+        fig = plot_confusion_matrix_from_matrix(fixed_cm, class_names)
+        st.pyplot(fig)
+    elif can_run_live_eval:
+        st.caption("Final fixed confusion matrix not found; showing live confusion matrix.")
+        fig = plot_confusion_matrix(y_test, y_pred, class_names)
+        st.pyplot(fig)
+    else:
+        st.warning("Confusion matrix is unavailable because no final artifact was found and live model evaluation is disabled.")
+
+    st.markdown("---")
+
+    # Classification Report
+    st.header("Classification Report")
+    if fixed_report:
+        st.caption("Showing final classification report from saved final artifact/Notebook 05 output.")
+        st.code(fixed_report)
+    elif can_run_live_eval:
+        st.caption("Final fixed report not found; showing simple per-class recall from live predictions.")
+        cm_live = np.zeros((len(class_names), len(class_names)), dtype=int)
+        for actual, predicted in zip(y_test, y_pred):
+            cm_live[int(actual), int(predicted)] += 1
+
+        report_lines = ["Class            Recall    Support"]
+        for idx, name in enumerate(class_names):
+            support = int(cm_live[idx].sum())
+            recall = (cm_live[idx, idx] / support) if support else 0.0
+            report_lines.append(f"{name:<15} {recall:>6.2%}   {support}")
+        report = "\n".join(report_lines)
+        st.code(report)
+    else:
+        st.warning("Classification report is unavailable because no final artifact was found and live model evaluation is disabled.")
+
+    st.markdown("---")
+
+    # Key Insights
+    st.header("⚠️ Important Notes")
+    st.warning("""
+    **This model is for educational purposes only:**
+    - Test accuracy is ~80%, with better performance on "No Tumor" and "Pituitary" classes
+    - Glioma detection (63-70%) is challenging due to similarity with other tumor types
+    - Clinical deployment would require significantly higher accuracy (85%+)
+    - Always consult with medical professionals for diagnosis
+    """)
 
 
